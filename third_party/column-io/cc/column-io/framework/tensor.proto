@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package column;
+
+option cc_enable_arenas = true;
+
+import "types.proto";
+import "tensor_shape.proto";
+
+message TensorProto {
+  DataTypeProto dtype = 1;
+  TensorShapeProto tensor_shape = 2;
+  string name = 3;  // tensor name, for op output fetch and feed
+  bytes tensor_content = 4;
+}
+
+message TensorDataPair{
+  string name=1;
+  TensorProto proto=2;
+};
+
+message TensorDataProto{
+  repeated TensorDataPair tensor_data=1;
+};

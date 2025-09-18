@@ -1,0 +1,10 @@
+if (_GLIBCXX_USE_CXX11_ABI EQUAL 0)
+    file(GLOB ODPS_PROXY_CC *.cc)
+    add_library(odps_proxy ${ODPS_PROXY_CC})
+    target_include_directories(odps_proxy PUBLIC ${CC_BASE_INCLUDE_DIR})
+    target_link_libraries(odps_proxy PUBLIC rapidjson framework absl::strings absl::log)
+    target_compile_definitions(odps_proxy PUBLIC TF_ENABLE_ODPS_COLUMN)
+    add_dependencies(odps_proxy odps_plugin)
+else()
+    # NO CXX11ABI=1  odps-algosdk to use now
+endif()

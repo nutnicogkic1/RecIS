@@ -1,0 +1,36 @@
+# NVIDIA official image (ubuntu-22.04 + cuda-12.4 + python-3.10)
+# https://docs.nvidia.com/deeplearning/frameworks/pytorch-release-notes/rel-24-08.html
+FROM nvcr.io/nvidia/pytorch:24.05-py3
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_ROOT_USER_ACTION=ignore
+ENV NV_PLATFORM=1
+
+COPY . /workspace/recis/
+
+RUN pip install --upgrade pip setuptools wheel --trusted-host mirrors.aliyun.com --index-url https://mirrors.aliyun.com/pypi/simple/
+
+RUN pip uninstall -y torch torchvision torch-tensorrt transformer-engine
+
+RUN pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124
+
+RUN cp /etc/apt/sources.list /etc/apt/sources.list.bak && \
+    { \
+    echo "deb https://mirrors.aliyun.com/ubuntu/ jammy main restricted universe multiverse"; \
+    echo "deb https://mirrors.aliyun.com/ubuntu/ jammy-security main restricted universe multiverse"; \
+    echo "deb https://mirrors.aliyun.com/ubuntu/ jammy-updates main restricted universe multiverse"; \
+    echo "deb https://mirrors.aliyun.com/ubuntu/ jammy-backports main restricted universe multiverse"; \
+    } > /etc/apt/sources.list
+
+RUN apt-get update && apt-get install -y libomp-dev ca-certificates lsb-release wget && \
+    wget https://packages.apache.org/artifactory/arrow/$(lsb_release --id --short | tr 'A-Z' 'a-z')/apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb && \
+    apt-get install -y ./apache-arrow-apt-source-latest-$(lsb_release --codename --short).deb && \
+    apt-get update && \
+    apt-get install -y libarrow-dev=21.0.0-1 liborc-dev
+RUN mkdir /usr/local/lib64/ && \
+    ln -s /usr/lib/x86_64-linux-gnu/libomp.so.5 /usr/local/lib64/libomp.so
+
+RUN cd /workspace/recis/ && sh build.sh 0
+RUN pip install `find /workspace/recis/dist -name "recis*.whl" -maxdepth 1` --trusted-host mirrors.aliyun.com --index-url https://mirrors.aliyun.com/pypi/simple/
+RUN cd /workspace/recis/third_party/column-io/ && sh tools/build_and_install.sh 0
+RUN cd / && rm -rf /workspace/recis/

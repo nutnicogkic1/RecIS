@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package column;
+
+option cc_enable_arenas = true;
+
+message TensorShapeProto {
+  bool is_scalar = 1;
+  int64 num_elements = 2;
+  repeated int64 dims = 3;
+};

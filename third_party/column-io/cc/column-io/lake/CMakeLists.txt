@@ -1,0 +1,8 @@
+file(GLOB lake_CC *.cc)
+add_library(lake_plugin ${lake_CC})
+if (_GLIBCXX_USE_CXX11_ABI EQUAL 0)
+    target_compile_definitions(lake_plugin PUBLIC _GLIBCXX_USE_CXX11_ABI=0)
+else()
+    target_compile_definitions(lake_plugin PUBLIC _GLIBCXX_USE_CXX11_ABI=1)
+endif()
+target_include_directories(lake_plugin PUBLIC ${CC_BASE_INCLUDE_DIR})

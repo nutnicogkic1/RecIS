@@ -1,0 +1,11 @@
+.vscode/
+.idea/
+build/
+dist/
+.cache/
+column_io/**/*.so
+column_io/CURRENT_REVISION.json
+*.egg-info
+*.excp
+*.pyc
+_pycache__/

@@ -1,0 +1,2 @@
+global-include *.so
+include column_io/lib/libprotobuf.so.18

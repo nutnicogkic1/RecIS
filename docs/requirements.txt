@@ -1,0 +1,18 @@
+# Sphinx documentation requirements
+sphinx>=4.0.0
+sphinx-rtd-theme>=1.0.0
+sphinxcontrib-jquery>=4.1
+sphinx-autobuild>=2021.3.14
+
+# Additional extensions
+myst-parser>=0.18.0
+sphinx-copybutton>=0.5.0
+sphinx-tabs>=3.4.0
+
+# For API documentation
+sphinx-autodoc-typehints>=1.19.0
+
+https://download.pytorch.org/whl/cpu-cxx11-abi/torch-2.4.0%2Bcpu.cxx11.abi-cp312-cp312-linux_x86_64.whl
+numpy
+pandas
+accelerate>=0.29.2
