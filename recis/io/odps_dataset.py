@@ -7,6 +7,7 @@ try:
     from column_io.dataset.odps_env_setup import (
         ensure_standard_path_format,
         init_odps_open_storage_session,
+        is_turn_on_odps_open_storage,
     )
 except ImportError:
 
