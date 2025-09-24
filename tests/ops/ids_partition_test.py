@@ -56,6 +56,19 @@ class IDSPartitionTest(unittest.TestCase):
                         f"{count}, recis_result is {recis_result[i]}, torch_result is {torch_result[i]}",
                     )
 
+    def test_empty_ids_encode(self):
+        ids = torch.tensor([], dtype=torch.int64, device="cuda")
+        world_size = 256
+        torch.cuda.synchronize()
+        recis_result = torch.ops.recis.ids_partition(ids, world_size)
+        torch_result = ids_partition(ids, world_size, 65536)
+        torch.cuda.synchronize()
+        for i in range(len(recis_result)):
+            self.assertTrue(
+                torch.equal(recis_result[i].cpu(), torch_result[i].cpu()),
+                f"recis_result is {recis_result[i]}, torch_result is {torch_result[i]}",
+            )
+
 
 if __name__ == "__main__":
     print(recis.__version__)

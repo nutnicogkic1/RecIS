@@ -144,6 +144,28 @@ class TestSegmentOps(unittest.TestCase):
         )
         self.assertTrue(torch.allclose(gpu_out.cpu(), cpu_out, atol=1e-7))
 
+    def test_segment_weight_sum_empty(self):
+        num_segments = 512
+        ids_rows = int(num_segments / 3 * 2)
+        data = torch.empty((0, 0), dtype=torch.float32)
+        weight = get_rand_tensor(shape=(ids_rows), dtype=torch.float32, min=0, max=1)
+        indices = torch.empty((0), dtype=torch.int64)
+        segment_ids = get_rand_tensor(
+            shape=(ids_rows), dtype=torch.int64, min=0, max=num_segments
+        )
+
+        data_g = data.cuda()
+        weight_g = weight.cuda()
+        indices_g = indices.cuda()
+        segment_ids_g = segment_ids.cuda()
+        gpu_out = segment_sum_sparse(
+            data_g, weight_g, indices_g, segment_ids_g, num_segments
+        )
+        cpu_out = segment_weight_sum_cpu(
+            data, weight, indices, segment_ids, num_segments
+        )
+        self.assertTrue(torch.allclose(gpu_out.cpu(), cpu_out, atol=1e-7))
+
     def test_segment_weight_mean_rand(self):
         dim = 16
         num_segments = 512

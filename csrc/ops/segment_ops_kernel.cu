@@ -180,6 +180,7 @@ void segment_sum_kernel_launcher(const scalar_t* data, const index_t* indices,
   recis::cuda::cal_pack_sizes<scalar_t>(
       reverse_num, embedding_dim, emb_tile_size, emb_thread_size, id_tile_size,
       id_blocks, real_pack_size);
+  if (id_blocks <= 0) return;
   dim3 grids(id_blocks);
   dim3 blocks(emb_thread_size, id_tile_size);
   if (real_pack_size == 2) {
@@ -247,6 +248,7 @@ bool segment_mean_cuda(torch::Tensor weight, bool use_weight,
         fill_value_1D<scalar_t><<<block_sum, threads, 0, stream>>>(
             weight_sum.data_ptr<scalar_t>(), scalar_t(0), weight_sum.numel());
       }));
+  if (block_weight <= 0) return true;
   // weight sum
   AT_DISPATCH_INTEGRAL_TYPES(
       segment_ids.scalar_type(), "segment_weight_mean_indices", ([&] {

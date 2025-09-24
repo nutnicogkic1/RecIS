@@ -49,6 +49,7 @@ combine_as_imports = true
 [tool.ruff]
 line-length = 88
 src = ["recis", "tests", "examples", "docs", "tools", "*.py"]
+exclude = ["third_party"]
 
 [tool.ruff.format]
 docstring-code-format = true

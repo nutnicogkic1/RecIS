@@ -41,6 +41,11 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> ids_partition(
     const torch::Tensor &ids, int64_t num_parts) {
   TORCH_CHECK(ids.dtype() == torch::kInt64, "ids must be int64");
   TORCH_CHECK(ids.dim() == 1, "ids must be 1-dim");
+  if (ids.numel() == 0) {
+    return std::make_tuple(torch::empty(0, ids.options()),
+                           torch::zeros(num_parts, ids.options()),
+                           torch::empty(0, ids.options()));
+  }
 
   if (ids.device().is_cuda()) {
     return ids_partition_cuda(ids, num_parts);

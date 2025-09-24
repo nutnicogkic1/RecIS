@@ -35,6 +35,25 @@ class IDEncodeTest(unittest.TestCase):
         torch.cuda.synchronize()
         self.assertTrue(torch.equal(ans, ret))
 
+    def test_all_empty_tensor_encode_cuda(self):
+        n = 4
+        ids_list = [
+            torch.tensor([], dtype=torch.int64, device="cuda") for _ in range(n)
+        ]
+        offset_list = torch.arange(0, n, dtype=torch.int64, device="cuda")
+        ans = fused_ids_encode_gpu(ids_list, offset_list)
+        ret = encode_ids(ids_list, offset_list)
+        torch.cuda.synchronize()
+        self.assertTrue(torch.equal(ans, ret))
+
+    def test_one_empty_tensor_encode_cuda(self):
+        ids_list, offset_list = self.get_data("cuda")
+        ids_list[0] = torch.tensor([], dtype=torch.int64, device="cuda")
+        ans = fused_ids_encode_gpu(ids_list, offset_list)
+        ret = encode_ids(ids_list, offset_list)
+        torch.cuda.synchronize()
+        self.assertTrue(torch.equal(ans, ret))
+
 
 if __name__ == "__main__":
     unittest.main()

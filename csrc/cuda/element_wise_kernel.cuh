@@ -74,6 +74,7 @@ void fused_element_wise_launcher(const A** a, const B* b, C** c, int64_t* sizes,
   for (int64_t i = 0; i < N; ++i) {
     max_size = std::max(max_size, sizes[i]);
   }
+  if (max_size == 0) return;
   int64_t block_num =
       min(sm_count * 8, (max_size + KBLOCK_SIZE - 1) / KBLOCK_SIZE);
   dim3 grid(block_num, N);
@@ -86,6 +87,7 @@ void fused_element_wise_launcher(const A** a, const B* b, C** c, int64_t* sizes,
     fused_element_wise_kernel<A, B, C, Factory>
         <<<grid, block, 0, stream>>>(a, b, c, N, d_sizes, factor);
   }
+  C10_CUDA_KERNEL_LAUNCH_CHECK();
   C10_CUDA_CHECK(cudaStreamSynchronize(stream));
   delete_cuda_ptr(d_sizes);
 }
