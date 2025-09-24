@@ -1,4 +1,4 @@
-<h1 align="center"> RecIS (Recommendation Intelligence System) </h1>
+<h1 align="center">  RecIS (Recommendation Intelligence System) </h1>
 
 RecIS：一个专为超大规模稀疏+稠密计算设计的统一架构深度学习框架。基于 PyTorch 开源生态构建，为推荐模型训练，或推荐结合多模态/大模型训练提供了完整的解决方案。由阿里控股集团爱橙科技智能引擎事业部和淘天广告技术、淘天算法技术团队联合推出。目前已在阿里巴巴广告、推荐、搜索等场景广泛应用。
 
@@ -6,6 +6,12 @@ RecIS：一个专为超大规模稀疏+稠密计算设计的统一架构深度�
     <img alt="Static Badge" src="https://img.shields.io/badge/made_by-XDL_Team-blue">
     <img alt="Static Badge" src="https://img.shields.io/badge/version-v1.0.0-green">
     <img alt="Static Badge" src="https://img.shields.io/badge/license-Apache--2.0-blue">
+    <img src="https://img.shields.io/github/stars/alibaba/Recis?style=social" alt="stars">
+    <img src="https://img.shields.io/github/issues/alibaba/Recis" alt="GitHub issues">
+    <a href="./docs/_static/recis_wechat.png" target="_blank">
+      <img src="https://img.shields.io/badge/WeChat-green?logo=wechat" alt="WeChat QR">
+    </a>
+
 </p>
 
 ## 🎯 设计目标
@@ -101,6 +107,9 @@ RecIS 框架通过一种两级存储架构实现了高效的动态嵌入（HashT
 如果遇到问题，可以：
 
 - 查看项目 [Issues](https://github.com/alibaba/RecIS/issues)
+- 加入微信交流群
+  
+<img src="./docs/_static/recis_wechat.png" width="20%" alt="Wechat">
 
 ## 📄 许可证
 
