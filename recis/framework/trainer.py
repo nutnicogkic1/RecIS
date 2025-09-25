@@ -301,18 +301,24 @@ class Trainer:
                 break
             need_break = False
             stop_flag, data = next(iterator)
-            if self.data_to_cuda:
-                data = copy_data_to_device(data, "cuda")
-            if stop_flag:
-                if hasattr(self.eval_dataset, "_window_paths"):
+            if hasattr(self.eval_dataset, "_window_paths"):
+                # if window io, sync the stop flag
+                stop_flag = self.sync_exit_flag(stop_flag)
+                # if stop_flag is True, try to get the next window
+                if stop_flag:
                     iterator = self.get_new_window_iter(self.eval_dataset)
+                    # if iterator is None, break
                     if iterator is None:
                         need_break = True
-                else:
-                    need_break = True
+            elif stop_flag:
+                need_break = True
             need_break = self.sync_exit_flag(need_break)
             if need_break:
                 break
+            if stop_flag:  # only window io could hit this
+                continue
+            if self.data_to_cuda:
+                data = copy_data_to_device(data, "cuda")
             metrics = {}
             self.model.eval()
             with torch.no_grad():
@@ -359,19 +365,25 @@ class Trainer:
             if max_steps is not None and lstep >= max_steps - 1:
                 break
             stop_flag, data = next(iterator)
-            if self.data_to_cuda:
-                data = copy_data_to_device(data, "cuda")
             need_break = False
-            if stop_flag:
-                if hasattr(self.train_dataset, "_window_paths"):
+            if hasattr(self.train_dataset, "_window_paths"):
+                # if window io, sync the stop flag
+                stop_flag = self.sync_exit_flag(stop_flag)
+                # if stop_flag is True, try to get the next window
+                if stop_flag:
                     iterator = self.get_new_window_iter(self.train_dataset)
+                    # if iterator is None, break
                     if iterator is None:
                         need_break = True
-                else:
-                    need_break = True
+            elif stop_flag:
+                need_break = True
             need_break = self.sync_exit_flag(need_break)
             if need_break:
                 break
+            if stop_flag:  # only window io could hit this
+                continue
+            if self.data_to_cuda:
+                data = copy_data_to_device(data, "cuda")
             metrics = {}
             with self.accelerator.accumulate(self.model):
                 self._train_step(data, epoch, metrics)
