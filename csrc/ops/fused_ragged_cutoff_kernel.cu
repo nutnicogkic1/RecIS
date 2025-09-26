@@ -73,9 +73,6 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> post_cutoff_lens_cuda_op(
     std::vector<at::Tensor> offsets, at::Tensor keep_lens,
     at::Tensor fea_offset, int fea_num, int total_rows, int max_row_num,
     cudaStream_t stream) {
-  int grid_dim_x =
-      (max_row_num + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK;
-  int grid_dim_y = fea_num;
   dim3 block((max_row_num + MAX_THREADS_PER_BLOCK - 1) / MAX_THREADS_PER_BLOCK,
              fea_num),
       thread(MAX_THREADS_PER_BLOCK);
@@ -448,7 +445,7 @@ std::tuple<at::Tensor, at::Tensor, at::Tensor> seg_gen_offsets_cuda(
                          max_offset_seg);
 }
 
-template <typename index_t, typename value_t>
+template <typename index_t, typename value_t, bool use_shared_mem>
 __global__ void fused_ragged_cutoff_3D_kernel(
     const index_t** __restrict__ offsets,        // input outer offset
     const index_t** __restrict__ inner_offsets,  // input inner offset
@@ -461,8 +458,7 @@ __global__ void fused_ragged_cutoff_3D_kernel(
     const bool* __restrict__ drop_sides,  // true: drop left; false: drop right
     const index_t* __restrict__ pad_num,
     const bool* __restrict__ pad_sides,  // true: pad left; false: pad right
-    const index_t* __restrict__ keep_lens, const int fea_num,
-    const bool use_shared_mem) {
+    const index_t* __restrict__ keep_lens, const int fea_num) {
   int tid = threadIdx.x;
   int data_id = threadIdx.x + blockDim.x * blockIdx.x;
   int stride = blockDim.x * gridDim.x;
@@ -490,7 +486,7 @@ __global__ void fused_ragged_cutoff_3D_kernel(
   index_t row_max = offset[seq_max] - offset[0];
   // load global to shared (seq_max + 1)
   extern __shared__ __align__(sizeof(index_t)) unsigned char tmp_smem[];
-  if (use_shared_mem) {
+  if constexpr (use_shared_mem) {
     index_t* smem_offsets = reinterpret_cast<index_t*>(tmp_smem);
     for (index_t i = tid; i < seq_max + 1; i += blockDim.x) {
       smem_offsets[i] = offset[i];
@@ -506,6 +502,10 @@ __global__ void fused_ragged_cutoff_3D_kernel(
   }
 
   index_t data_max = inner_offset[row_max] - inner_offset[0];
+  // early return for empty value
+  if (data_max == 0) {
+    return;
+  }
   __shared__ index_t keep_len;
   __shared__ index_t cutoff_val_num;
   const value_t* value = nullptr;
@@ -560,7 +560,7 @@ static int get_median(std::vector<T>& data) {
   size_t target_idx;
   target_idx = (n - 1) / 2;
   std::nth_element(data.begin(), data.begin() + target_idx, data.end());
-  return data[target_idx];
+  return std::max(data[target_idx], static_cast<T>(1));
 }
 
 void fused_ragged_cutoff_3D_cuda_op(
@@ -583,7 +583,6 @@ void fused_ragged_cutoff_3D_cuda_op(
               std::vector<index_t> val_nums;
               index_t max_offsets_ele = 0;
               index_t max_inner_offsets_ele = 0;
-              index_t max_rows_ele = 0;
               for (int i = 0; i < fea_num; ++i) {
                 offsets_ptrs[i] = offsets[i].data_ptr<index_t>();
                 inner_offsets_ptrs[i] = inner_offsets[i].data_ptr<index_t>();
@@ -597,42 +596,35 @@ void fused_ragged_cutoff_3D_cuda_op(
                 val_nums.emplace_back(static_cast<index_t>(values[i].numel()));
               }
 
-              size_t shared_mem_per_block =
-                  at::cuda::getCurrentDeviceProperties()->sharedMemPerBlock;
               size_t shared_mem_size =
                   sizeof(index_t) * (max_offsets_ele + max_inner_offsets_ele);
-              bool use_shared_mem = shared_mem_size < shared_mem_per_block;
-              if (!use_shared_mem) {
-                shared_mem_size = 0;
-              }
               const auto threads = dim3(MAX_THREADS_PER_BLOCK);
               int grid_x = (get_median(val_nums) + MAX_THREADS_PER_BLOCK - 1) /
                            MAX_THREADS_PER_BLOCK;
               int grid_y = fea_num;
               const auto blocks = dim3(grid_x, grid_y);
 
-              fused_ragged_cutoff_3D_kernel<index_t, scalar_t>
-                  <<<blocks, threads, shared_mem_size, stream>>>(
-                      const_cast<const index_t**>(offsets_ptrs.data()),
-                      const_cast<const index_t**>(inner_offsets_ptrs.data()),
-                      const_cast<const scalar_t**>(values_ptrs.data()),
-                      const_cast<const index_t*>(
-                          output_inner_offsets.data_ptr<index_t>()),
-                      cutoff_values.data_ptr<scalar_t>(),
-                      fea_offset.data_ptr<index_t>(),
-                      output_inner_fea_offset.data_ptr<index_t>(),
-                      output_val_fea_offset.data_ptr<index_t>(),
-                      drop_nums.data_ptr<index_t>(),
-                      drop_sides.data_ptr<bool>(), pad_nums.data_ptr<index_t>(),
-                      pad_sides.data_ptr<bool>(), keep_lens.data_ptr<index_t>(),
-                      fea_num, use_shared_mem);
-              C10_CUDA_KERNEL_LAUNCH_CHECK();
+              LAUNCH_KERNEL_SHMEM_DISPATCH(
+                  fused_ragged_cutoff_3D_kernel, (index_t, scalar_t), blocks,
+                  threads, shared_mem_size, stream,
+                  const_cast<const index_t**>(offsets_ptrs.data()),
+                  const_cast<const index_t**>(inner_offsets_ptrs.data()),
+                  const_cast<const scalar_t**>(values_ptrs.data()),
+                  const_cast<const index_t*>(
+                      output_inner_offsets.data_ptr<index_t>()),
+                  cutoff_values.data_ptr<scalar_t>(),
+                  fea_offset.data_ptr<index_t>(),
+                  output_inner_fea_offset.data_ptr<index_t>(),
+                  output_val_fea_offset.data_ptr<index_t>(),
+                  drop_nums.data_ptr<index_t>(), drop_sides.data_ptr<bool>(),
+                  pad_nums.data_ptr<index_t>(), pad_sides.data_ptr<bool>(),
+                  keep_lens.data_ptr<index_t>(), fea_num);
             });
       });
 }
 
-template <typename index_t, typename value_t>
-__global__ void fused_ragged_cutoff_kernel(
+template <typename index_t, typename value_t, bool use_shared_mem>
+__global__ void fused_ragged_cutoff_2D_kernel(
     const index_t** __restrict__ offsets, const value_t** __restrict__ values,
     const index_t* __restrict__ cutoff_offsets,
     value_t* __restrict__ cutoff_values, const index_t* __restrict__ fea_offset,
@@ -640,8 +632,7 @@ __global__ void fused_ragged_cutoff_kernel(
     const index_t* __restrict__ drop_num, const index_t* __restrict__ pad_num,
     const index_t* __restrict__ keep_lens,
     const index_t* __restrict__ cutoff_val_nums, const int fea_num,
-    const bool* __restrict__ sides,  // true: drop left; false: drop right
-    const bool use_shared_mem) {
+    const bool* __restrict__ sides) {  // true: drop left; false: drop right
   int tid = threadIdx.x;
   int data_id = threadIdx.x + blockDim.x * blockIdx.x;
   int stride = blockDim.x * gridDim.x;
@@ -667,7 +658,7 @@ __global__ void fused_ragged_cutoff_kernel(
   const index_t* offset = offsets[fea];
   // load global to shared (row_max + 1)
   extern __shared__ __align__(sizeof(index_t)) unsigned char tmp_smem[];
-  if (use_shared_mem) {
+  if constexpr (use_shared_mem) {
     index_t* smem_offsets = reinterpret_cast<index_t*>(tmp_smem);
     for (index_t i = tid; i < row_max + 1; i += blockDim.x) {
       smem_offsets[i] = offset[i];
@@ -676,7 +667,10 @@ __global__ void fused_ragged_cutoff_kernel(
     offset = smem_offsets;
   }
   index_t data_max = offset[row_max] - offset[0];
-
+  // early return for empty value
+  if (data_max == 0) {
+    return;
+  }
   index_t row = 0;
   index_t src_beg = 0;
   index_t drop = 0;
@@ -753,32 +747,25 @@ void fused_ragged_cutoff_2D_cuda_op(
                 val_nums.emplace_back(static_cast<int>(values[i].numel()));
               }
 
-              size_t shared_mem_per_block =
-                  at::cuda::getCurrentDeviceProperties()->sharedMemPerBlock;
               size_t shared_mem_size = sizeof(index_t) * max_offsets_ele;
-              bool use_shared_mem = shared_mem_size < shared_mem_per_block;
-              if (!use_shared_mem) {
-                shared_mem_size = 0;
-              }
               const auto threads = dim3(MAX_THREADS_PER_BLOCK);
-              int grid_x = (get_median(val_nums) + MAX_THREADS_PER_BLOCK - 1) /
-                           MAX_THREADS_PER_BLOCK;
-              int grid_y = fea_num;
-              const auto blocks = dim3(grid_x, grid_y);
-              fused_ragged_cutoff_kernel<index_t, scalar_t>
-                  <<<blocks, threads, shared_mem_size, stream>>>(
-                      const_cast<const index_t**>(offsets_ptrs.data()),
-                      const_cast<const scalar_t**>(values_ptrs.data()),
-                      cutoff_offsets.data_ptr<index_t>(),
-                      cutoff_values.data_ptr<scalar_t>(),
-                      fea_offset.data_ptr<index_t>(),
-                      output_val_fea_offset.data_ptr<index_t>(),
-                      drop_nums.data_ptr<index_t>(),
-                      pad_nums.data_ptr<index_t>(),
-                      keep_lens.data_ptr<index_t>(),
-                      cutoff_val_nums.data_ptr<index_t>(), fea_num,
-                      sides.data_ptr<bool>(), use_shared_mem);
-              C10_CUDA_KERNEL_LAUNCH_CHECK();
+              const auto blocks =
+                  dim3((get_median(val_nums) + MAX_THREADS_PER_BLOCK - 1) /
+                           MAX_THREADS_PER_BLOCK,
+                       fea_num);
+              LAUNCH_KERNEL_SHMEM_DISPATCH(
+                  fused_ragged_cutoff_2D_kernel, (index_t, scalar_t), blocks,
+                  threads, shared_mem_size, stream,
+                  const_cast<const index_t**>(offsets_ptrs.data()),
+                  const_cast<const scalar_t**>(values_ptrs.data()),
+                  cutoff_offsets.data_ptr<index_t>(),
+                  cutoff_values.data_ptr<scalar_t>(),
+                  fea_offset.data_ptr<index_t>(),
+                  output_val_fea_offset.data_ptr<index_t>(),
+                  drop_nums.data_ptr<index_t>(), pad_nums.data_ptr<index_t>(),
+                  keep_lens.data_ptr<index_t>(),
+                  cutoff_val_nums.data_ptr<index_t>(), fea_num,
+                  sides.data_ptr<bool>());
             });
       });
 }

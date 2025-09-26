@@ -218,6 +218,8 @@ def _fused_ragged_cutoff_3D(
         ValueError: If input lists are inconsistent in length, or if tensor dtypes
             or dimensions are incorrect.
         TypeError: If an element in any of the input lists is not a torch.Tensor.
+        RuntimeError: If one of the input ragged tensor have 0 seqs or 0 rows. here comes example:
+        val is tensor([], dtype=torch.float64), offsets is [tensor([0, 0, 0, 0, 0, 0], dtype=torch.int32), tensor([0], dtype=torch.int32)],
 
     Example:
         >>> import torch
@@ -234,9 +236,9 @@ def _fused_ragged_cutoff_3D(
         >>> outer_offsets_a = torch.tensor([0, 3, 4, 6], dtype=torch.int32)
         >>> inner_offsets_a = torch.tensor([0, 1, 4, 4, 8, 8, 10], dtype=torch.int32)
         >>> # Cutoff parameters: keep_len = 2, drop left (True), pad left (True)
-        >>> keep_lengths = torch.tensor([[2, 2, 2]], dtype=torch.int32)
-        >>> drop_sides = torch.tensor([[True, True, True]], dtype=torch.bool)
-        >>> pad_sides = torch.tensor([[True, True, True]], dtype=torch.bool)
+        >>> keep_lengths = torch.tensor([2], dtype=torch.int32)
+        >>> drop_sides = torch.tensor([True], dtype=torch.bool)
+        >>> pad_sides = torch.tensor([True], dtype=torch.bool)
         >>> # Apply cutoff
         >>> new_values, new_outer, new_inner = _fused_ragged_cutoff_3D(
         ...     [values_a],
@@ -250,6 +252,47 @@ def _fused_ragged_cutoff_3D(
         >>> # Sequence 0 (len 3 > 2): drop from left -> [ [11, 12, 13], [] ]
         >>> # Sequence 1 (len 1 < 2): pad left with empty -> [ [], [14, 15, 16, 17] ]
         >>> # Sequence 2 (len 2 == 2): no change -> [ [], [18, 19] ]
+        >>> # Original 3D empty ragged tensor 'b'
+        >>> values = torch.tensor([], dtype=torch.float64)
+        >>> outer_offsets = torch.tensor([0, 0, 0, 0, 0, 0], dtype=torch.int32)
+        >>> inner_offsets = torch.tensor([0], dtype=torch.int32)
+        >>> new_values, new_outer, new_inner = _fused_ragged_cutoff_3D(
+        ...     [values],
+        ...     [outer_offsets],
+        ...     [inner_offsets],
+        ...     keep_lengths,
+        ...     drop_sides,
+        ...     pad_sides,
+        ... )
+        >>> # Expected error:
+        >>> # fused_ragged_cutoff_3D: 0th input ragged tensor can not have 0 seqs either 0 rows
+        >>>
+        >>> # Original 3D empty ragged tensor 'c' but with at least 1 row
+        >>> # [
+        >>> #     [ [], [], [], [], [] ],               # Sequence 0, len 1
+        >>> #     [ [], ],           # Sequence 1, len 2
+        >>> #     [ [], [], [], [] ],           # Sequence 2, len 2
+        >>> # ]
+        >>> values = torch.tensor([], dtype=torch.float64)
+        >>> outer_offsets = torch.tensor([0, 5, 6, 10], dtype=torch.int32)
+        >>> inner_offsets = torch.tensor(
+        ...     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=torch.int32
+        ... )
+        >>> new_values, new_outer, new_inner = _fused_ragged_cutoff_3D(
+        ...     [values],
+        ...     [outer_offsets],
+        ...     [inner_offsets],
+        ...     torch.tensor([3], dtype=torch.int32),
+        ...     drop_sides,
+        ...     pad_sides,
+        ... )
+        >>> # Expected results:
+        >>> # Sequence 0 (len 5 > 3): cut right -> [[], [], []]
+        >>> # Sequence 1 (len 1 < 3): pad right -> [[], [], []]
+        >>> # Sequence 2 (len 4 > 3): cut right -> [[], [], []]
+        >>> # new_values: [tensor([], device='cuda:0', dtype=torch.float64)]
+        >>> # new_outer: [tensor([0, 3, 6, 9], device='cuda:0', dtype=torch.int32)]
+        >>> # new_inner: [tensor([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], device='cuda:0', dtype=torch.int32)]
 
     Note:
         - Default behavior: drop right, pad right (when drop_sides/pad_sides are None)
@@ -359,6 +402,73 @@ def fused_ragged_cutoff_2D(
                     if tensor dimensions/dtypes are incorrect, if tensors are
                     on different devices.
         TypeError: If an element in `values` or `offsets` is not a `torch.Tensor`.
+        RuntimeError: If one of input ragged tensor only have 0 row
+
+    Example:
+        >>> import torch
+        >>> from recis.nn.functional.ragged_ops import _fused_ragged_cutoff_3D
+        >>> # Original 3D ragged tensor 'a':
+        >>> # [
+        >>> #     [9155707040084860980, 11, 12]
+        >>> #     [20, 21],
+        >>> #     [30, 31, 32, 33]
+        >>> # ]
+        >>> values = torch.tensor(
+        ...     [9155707040084860980, 11, 12, 20, 21, 30, 31, 32, 33], dtype=torch.int64
+        ... )
+        >>> offsets = torch.tensor([0, 3, 5, 9], dtype=torch.int32)
+        >>> # Cutoff parameters: keep_len = 3, drop left (True), pad left (True)
+        >>> keep_lengths = torch.tensor([3], dtype=torch.int32)
+        >>> drop_sides = torch.tensor([True], dtype=torch.bool)
+        >>> pad_sides = torch.tensor([True], dtype=torch.bool)
+        >>> # Apply cutoff
+        >>> new_values, new_offsets, drop_nums, pad_nums = fused_ragged_cutoff_2D(
+        ...     [values],
+        ...     [offsets],
+        ...     keep_lengths,
+        ...     drop_sides,
+        ...     pad_sides,
+        ... )
+        >>> # Expected results:
+        >>> # new_values = tensor([9155707040084860980, 11, 12, 20, 21, 30, 31, 32])
+        >>> # new_offsets = tensor([0, 3, 5, 8], device='cuda:0', dtype=torch.int32)
+        >>> # drop_nums = tensor([0, 0, 1], device='cuda:0', dtype=torch.int32)
+        >>> # pad_nums = tensor([0, 1, 0], device='cuda:0', dtype=torch.int32)
+        >>> # Original 2D empty ragged tensor 'b'
+        >>> values = torch.tensor([], dtype=torch.float64)
+        >>> offsets = tensor([0], dtype=torch.int32)
+        >>> new_values, new_offsets, drop_nums, pad_nums = _fused_ragged_cutoff_3D(
+        ...     [values],
+        ...     [offsets],
+        ...     keep_lengths,
+        ...     drop_sides,
+        ...     pad_sides,
+        ... )
+        >>> # Expected error:
+        >>> # fused_ragged_cutoff_2D: 0th input ragged tensor can not have 0 rows
+        >>>
+        >>> # Original 2D empty ragged tensor 'c' but with at least 1 row
+        >>> # [
+        >>> #     [],
+        >>> #     [],
+        >>> #     [],
+        >>> # ]
+        >>> values = torch.tensor([], dtype=torch.float64)
+        >>> offsets = (torch.tensor([0, 0, 0, 0], dtype=torch.int32),)
+        >>> new_values, new_offsets, drop_nums, pad_nums = _fused_ragged_cutoff_3D(
+        ...     [values],
+        ...     [outer_offsets],
+        ...     [inner_offsets],
+        ...     keep_lengths
+        ...     drop_sides,
+        ...     pad_sides,
+        ... )
+        >>> # Expected results:
+        >>> # new_values: [tensor([], device='cuda:0', dtype=torch.float64)]
+        >>> # new_offsets: [tensor([0, 0, 0, 0], device='cuda:0', dtype=torch.int32)]
+        >>> # drop_nums: [tensor([0, 0, 0], device='cuda:0', dtype=torch.int32)]
+        >>> # pad_nums: [tensor([3, 3, 3], device='cuda:0', dtype=torch.int32)]
+
     """
     if len(offsets) != len(values):
         raise ValueError(
@@ -375,7 +485,7 @@ def fused_ragged_cutoff_2D(
             f"'pad_sides' must be of type torch.bool, but got {pad_sides.dtype}."
         )
 
-    return torch.ops.recis.fused_ragged_cutoff(
+    return torch.ops.recis.fused_ragged_cutoff_2D(
         values, offsets, keep_lengths, drop_sides, pad_sides
     )
 

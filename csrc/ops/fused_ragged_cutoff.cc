@@ -23,31 +23,50 @@ namespace functional {
 std::tuple<std::vector<torch::Tensor>, std::vector<torch::Tensor>,
            std::vector<torch::Tensor>, std::vector<torch::Tensor>,
            torch::Tensor, torch::Tensor>
-fused_ragged_cutoff(std::vector<at::Tensor> values,
-                    std::vector<at::Tensor> offsets, at::Tensor keep_lengths,
-                    at::Tensor drop_sides, at::Tensor pad_sides) {
+fused_ragged_cutoff_2D(std::vector<at::Tensor> values,
+                       std::vector<at::Tensor> offsets, at::Tensor keep_lengths,
+                       at::Tensor drop_sides, at::Tensor pad_sides) {
   TORCH_CHECK(all_cuda(values),
-              "fused_ragged_cutoff: each value should be placed on gpu");
+              "fused_ragged_cutoff_2D: each value should be placed on gpu");
   TORCH_CHECK(all_cuda(offsets),
-              "fused_ragged_cutoff: each offsets should be placed on gpu");
+              "fused_ragged_cutoff_2D: each offsets should be placed on gpu");
   TORCH_CHECK(all_cuda({keep_lengths}),
-              "fused_ragged_cutoff: keep_lengths should be placed on gpu");
+              "fused_ragged_cutoff_2D: keep_lengths should be placed on gpu");
   TORCH_CHECK(all_cuda({drop_sides}),
-              "fused_ragged_cutoff: drop_sides should be placed on gpu");
+              "fused_ragged_cutoff_2D: drop_sides should be placed on gpu");
   TORCH_CHECK(all_cuda({pad_sides}),
-              "fused_ragged_cutoff: pad_sides should be placed on gpu");
+              "fused_ragged_cutoff_2D: pad_sides should be placed on gpu");
   TORCH_CHECK(all_same_type(values),
-              "fused_ragged_cutoff: each value should be the same type");
+              "fused_ragged_cutoff_2D: each value should be the same type");
   TORCH_CHECK(all_same_type(offsets, torch::kInt32) ||
                   all_same_type(offsets, torch::kInt64),
-              "fused_ragged_cutoff: each offsets should be torch::kInt32 "
+              "fused_ragged_cutoff_2D: each offsets should be torch::kInt32 "
               "or torch::kInt64");
-  TORCH_CHECK(
-      all_same_type({drop_sides, pad_sides}, torch::kBool),
-      "fused_ragged_cutoff: drop_sides and pad_sides should be torch::kBool");
+
+  int fea_num = values.size();
+  TORCH_CHECK(all_same_type({drop_sides, pad_sides}, torch::kBool),
+              "fused_ragged_cutoff_2D: drop_sides and pad_sides should be "
+              "torch::kBool");
+  TORCH_CHECK(fea_num == offsets.size(),
+              "fused_ragged_cutoff_2D: values size should equal offsets size");
+  for (int i = 0; i < offsets.size(); ++i) {
+    TORCH_CHECK(offsets[i].numel() > 1, "fused_ragged_cutoff_2D: ", i,
+                "th input ragged tensor can not have 0 rows");
+  }
 
   auto stream = c10::cuda::getCurrentCUDAStream();
-  int fea_num = values.size();
+
+  std::vector<at::Tensor> ragged_val_vec(fea_num);
+  std::vector<at::Tensor> ragged_offsets_vec(fea_num);
+  std::vector<at::Tensor> drop_nums_vec(fea_num);
+  std::vector<at::Tensor> pad_nums_vec(fea_num);
+
+  // deal with no value input
+  if (fea_num == 0) {
+    return std::make_tuple(ragged_val_vec, ragged_offsets_vec, drop_nums_vec,
+                           pad_nums_vec, drop_sides, pad_sides);
+  }
+
   TORCH_CHECK(keep_lengths.numel() == fea_num,
               "keep_lengths.numel() = ", keep_lengths.numel(),
               " but is expected equals fea_num =", fea_num);
@@ -83,9 +102,6 @@ fused_ragged_cutoff(std::vector<at::Tensor> values,
   // exclusive offsets + inslusive offsets
   // cutoff_val_nums: value nums of each feature after cutoff
 
-  std::vector<at::Tensor> drop_nums_vec(fea_num);
-  std::vector<at::Tensor> pad_nums_vec(fea_num);
-
   at::Tensor cutoff_val_nums_cpu = cutoff_val_nums.to(torch::kCPU).contiguous();
   auto cutoff_val_nums_cpu_acc =
       cutoff_val_nums_cpu.accessor<int, 1>();  // around 100
@@ -109,7 +125,6 @@ fused_ragged_cutoff(std::vector<at::Tensor> values,
   at::Tensor output_val_fea_offset_cuda =
       output_val_fea_offset.to(torch::kCUDA);
   at::Tensor cutoff_values;
-
   if (!drop_nums.eq(0).all().item<bool>()) {
     cutoff_values =
         at::empty({global_size}, values.front().options().device(torch::kCUDA));
@@ -120,9 +135,6 @@ fused_ragged_cutoff(std::vector<at::Tensor> values,
   } else {
     cutoff_values = at::cat(values, 0);
   }
-
-  std::vector<at::Tensor> ragged_val_vec(fea_num);
-  std::vector<at::Tensor> ragged_offsets_vec(fea_num);
 
   at::parallel_for(0, fea_num, 1, [&](int64_t beg, int64_t end) {
     for (int i = beg; i < end; ++i) {
@@ -175,7 +187,6 @@ fused_ragged_cutoff_3D(std::vector<at::Tensor> values,
               "fused_ragged_cutoff_3D: drop_sides and pad_sides should be "
               "torch::kBool");
 
-  auto stream = c10::cuda::getCurrentCUDAStream();
   int fea_num = values.size();
   TORCH_CHECK(keep_lengths.numel() == fea_num,
               "keep_lengths.numel() = ", keep_lengths.numel(),
@@ -183,6 +194,26 @@ fused_ragged_cutoff_3D(std::vector<at::Tensor> values,
   TORCH_CHECK(outer_offsets.size() == fea_num,
               "outer_offsets.numel() = ", outer_offsets.size(),
               " but is expected equals fea_num =", fea_num);
+  TORCH_CHECK(inner_offsets.size() == fea_num,
+              "outer_offsets.numel() = ", outer_offsets.size(),
+              " but is expected equals fea_num =", fea_num);
+  for (int i = 0; i < inner_offsets.size(); ++i) {
+    TORCH_CHECK(inner_offsets[i].numel() > 1 && outer_offsets[i].numel() > 1,
+                "fused_ragged_cutoff_3D: ", i,
+                "th input ragged tensor can not have 0 seqs either 0 rows");
+  }
+
+  auto stream = c10::cuda::getCurrentCUDAStream();
+
+  std::vector<at::Tensor> ragged_val_vec(fea_num);
+  std::vector<at::Tensor> ragged_outer_offsets_vec(fea_num);
+  std::vector<at::Tensor> ragged_inner_offsets_vec(fea_num);
+
+  // deal with no value input
+  if (fea_num == 0) {
+    return std::make_tuple(ragged_val_vec, ragged_outer_offsets_vec,
+                           ragged_inner_offsets_vec);
+  }
 
   int max_seq_num = 0;
   std::vector<int> fea_seq_offset(fea_num + 1);
@@ -258,10 +289,6 @@ fused_ragged_cutoff_3D(std::vector<at::Tensor> values,
   } else {
     cutoff_values = at::cat(values, 0);
   }
-
-  std::vector<at::Tensor> ragged_val_vec(fea_num);
-  std::vector<at::Tensor> ragged_outer_offsets_vec(fea_num);
-  std::vector<at::Tensor> ragged_inner_offsets_vec(fea_num);
 
   at::parallel_for(
       /* begin */ 0,

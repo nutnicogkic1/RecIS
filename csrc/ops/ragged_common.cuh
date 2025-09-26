@@ -84,6 +84,25 @@ __device__ bool walk_down_tensor_storage_tree_(
       TORCH_CHECK(false, "unsupported number of ragged dim ", num_ragged_dim); \
   }
 
+#define UNPACK(...) __VA_ARGS__
+
+#define LAUNCH_KERNEL_SHMEM_DISPATCH(KERNEL, TEMPLATE_ARGS, GRID, BLOCK, \
+                                     REQUIRED_SHMEM, STREAM, ...)        \
+  do {                                                                   \
+    size_t shared_mem_per_block =                                        \
+        at::cuda::getCurrentDeviceProperties()->sharedMemPerBlock;       \
+    bool use_shared_mem =                                                \
+        (REQUIRED_SHMEM > 0 && REQUIRED_SHMEM <= shared_mem_per_block);  \
+    if (use_shared_mem) {                                                \
+      KERNEL<UNPACK TEMPLATE_ARGS, true>                                 \
+          <<<GRID, BLOCK, REQUIRED_SHMEM, STREAM>>>(__VA_ARGS__);        \
+    } else {                                                             \
+      KERNEL<UNPACK TEMPLATE_ARGS, false>                                \
+          <<<GRID, BLOCK, 0, STREAM>>>(__VA_ARGS__);                     \
+    }                                                                    \
+    C10_CUDA_KERNEL_LAUNCH_CHECK();                                      \
+  } while (0)
+
 template <typename index_t>
 __device__ __host__ __forceinline__ index_t binary_search(index_t index,
                                                           const index_t *splits,

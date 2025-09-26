@@ -40,6 +40,22 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> feature_cross_ragged(
               "torch::kInt64");
   TORCH_CHECK(all_same_type({x_value, y_value}, torch::kInt64),
               "feature_cross_ragged: ids for x and y must be torch::kInt64");
+  TORCH_CHECK(
+      x_value.numel() == x_weight.numel() &&
+          y_value.numel() == y_weight.numel(),
+      "feature_cross_ragged: ids numel should equal weight, but x value numel ",
+      x_value.numel(), "; x_weight numel ", x_weight.numel(),
+      ". y_value numel ", y_value.numel(), "; y_weight numel ",
+      y_weight.numel());
+
+  torch::Tensor out_tensor, out_weight_tensor, out_offsets_tensor;
+  if (x_value.numel() == 0 || y_value.numel() == 0) {
+    out_tensor = torch::zeros({0}, x_value.options());
+    out_weight_tensor = torch::zeros({0}, x_weight.options());
+    out_offsets_tensor = torch::zeros(
+        {std::min(x_offsets.numel(), y_offsets.numel())}, x_offsets.options());
+    return std::make_tuple(out_tensor, out_offsets_tensor, out_weight_tensor);
+  }
 
   if (x_value.device().is_cuda()) {
     return feature_cross_ragged_cuda(x_value, x_offsets, x_weight, y_value,
@@ -50,9 +66,6 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor> feature_cross_ragged(
       all_cpu({x_value, y_value, x_offsets, y_offsets, x_weight, y_weight}));
 
   int64_t num_seg = std::min(x_offsets.numel(), y_offsets.numel()) - 1;
-
-  torch::Tensor out_tensor, out_weight_tensor, out_offsets_tensor;
-
   AT_DISPATCH_INDEX_TYPES(
       x_offsets.scalar_type(), "feature_cross_ragged_cpu_op_0", [&] {
         AT_DISPATCH_ALL_TYPES(

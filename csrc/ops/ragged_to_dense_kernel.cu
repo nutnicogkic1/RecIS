@@ -28,13 +28,14 @@ namespace functional {
 //   Introduced shared memory
 //   removed launch bounds
 //   simplified logic for multi-dimensional inner values.
-template <int NUM_RAGGED_DIM, typename index_t, typename scalar_t>
+template <int NUM_RAGGED_DIM, typename index_t, typename scalar_t,
+          bool use_shared_mem>
 __global__ void ragged_elementwise_to_dense_kernel(
     torch::PackedTensorAccessor64<scalar_t, 1, at::RestrictPtrTraits> values,
     StackArray<index_t*> offsets,
     torch::PackedTensorAccessor64<scalar_t, 2, at::RestrictPtrTraits> output,
     StackArray<int64_t> ragged_dims, const scalar_t padding_value,
-    bool use_shared_mem, StackArray<index_t> offsets_size) {
+    StackArray<index_t> offsets_size) {
   const index_t outer_dense_size = output.size(0);
   const index_t ragged_folded_size = output.size(1);
 
@@ -46,7 +47,7 @@ __global__ void ragged_elementwise_to_dense_kernel(
 
   extern __shared__ unsigned char shm[];
   index_t offoffsets[NUM_RAGGED_DIM];
-  if (use_shared_mem) {
+  if constexpr (use_shared_mem) {
     index_t* _sm_offsets = reinterpret_cast<index_t*>(shm);
     for (int d = 0; d < NUM_RAGGED_DIM; ++d) {
       offoffsets[d] = d == 0 ? 0 : offoffsets[d - 1] + offsets_size.vals[d - 1];
@@ -98,16 +99,13 @@ void ragged_to_dense_cuda(torch::Tensor values,
               num_ragged_dim * sizeof(int64_t));
 
 #define INVOKE_KERNEL_WITH_DIM(NUM_RAGGED_DIM)                                 \
-  {                                                                            \
-    ragged_elementwise_to_dense_kernel<NUM_RAGGED_DIM, index_t, scalar_t>      \
-        <<<blocks, threads, shared_mem_size, stream>>>(                        \
-            values.packed_accessor64<scalar_t, 1, torch::RestrictPtrTraits>(), \
-            offset_ptrs,                                                       \
-            output_view                                                        \
-                .packed_accessor64<scalar_t, 2, torch::RestrictPtrTraits>(),   \
-            ragged_dims_tensor, default_value.to<scalar_t>(), use_shared_mem,  \
-            offsets_size);                                                     \
-  }
+  LAUNCH_KERNEL_SHMEM_DISPATCH(                                                \
+      ragged_elementwise_to_dense_kernel, (NUM_RAGGED_DIM, index_t, scalar_t), \
+      blocks, threads, shared_mem_size, stream,                                \
+      values.packed_accessor64<scalar_t, 1, torch::RestrictPtrTraits>(),       \
+      offset_ptrs,                                                             \
+      output_view.packed_accessor64<scalar_t, 2, torch::RestrictPtrTraits>(),  \
+      ragged_dims_tensor, default_value.to<scalar_t>(), offsets_size)
 
   AT_DISPATCH_INDEX_TYPES(
       offsets.front().scalar_type(), "ragged_to_dense_cuda_op_0", ([&] {
@@ -132,20 +130,13 @@ void ragged_to_dense_cuda(torch::Tensor values,
               }
               const index_t offset_ele = std::accumulate(
                   offsets_size.vals, offsets_size.vals + offsets_size.ndim, 0);
-              size_t shared_mem_per_block =
-                  at::cuda::getCurrentDeviceProperties()->sharedMemPerBlock;
               size_t shared_mem_size = sizeof(index_t) * offset_ele;
-              bool use_shared_mem = shared_mem_size < shared_mem_per_block;
-              if (!use_shared_mem) {
-                shared_mem_size = 0;
-              }
               const auto blocks =
                   dim3((output.numel() + MAX_THREADS_PER_BLOCK - 1) /
                        MAX_THREADS_PER_BLOCK);
               const auto threads = dim3(MAX_THREADS_PER_BLOCK);
 
               RAGGED_TENSOR_DISPATCH_DIMS();
-              C10_CUDA_KERNEL_LAUNCH_CHECK();
             }));
       }));
 

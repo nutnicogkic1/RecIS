@@ -52,7 +52,6 @@ class TestFusedCutOffConsistency(unittest.TestCase):
         # self.load_data()   # use real mainse workload
         self.mock_data()
         self.num_tests = 5
-        self.trace_file = "mainse_3D_cutoff.json"
 
     def mock_data(self):
         self.fused_vals = defaultdict(list)
@@ -67,35 +66,35 @@ class TestFusedCutOffConsistency(unittest.TestCase):
 
         for i in range(10):
             val, offsets, max_lens = gen_ragged_tensor(
-                bs=2000,
-                min_seq=50,
-                max_seq=50 + i,
-                max_n=20 - i,
-                min_n=5,
+                bs=3,
+                min_seq=1,
+                max_seq=6,
+                max_n=0,
+                min_n=0,
                 dtype=torch.float64,
             )
             self.fused_vals[torch.float64].append(val.cuda())
             self.fused_offsets[torch.float64].append(offsets[0].cuda())
             self.fused_inner_offsets[torch.float64].append(offsets[1].cuda())
-            self.keep_lengths_list[torch.float64].append(i + 10)
+            self.keep_lengths_list[torch.float64].append(i + 3)
             self.drop_sides_list[torch.float64].append(False)
             self.pad_sides_list[torch.float64].append(False)
 
-        for i in range(10):
+        for i in range(5):
             val, offsets, max_lens = gen_ragged_tensor(
-                bs=2000,
+                bs=4096,
                 min_seq=60,
                 max_seq=60 + i,
                 max_n=10,
                 min_n=1,
-                dtype=torch.int64,
+                dtype=torch.float64,
             )
-            self.fused_vals[torch.int64].append(val.cuda())
-            self.fused_offsets[torch.int64].append(offsets[0].cuda())
-            self.fused_inner_offsets[torch.int64].append(offsets[1].cuda())
-            self.keep_lengths_list[torch.int64].append(i % 2 + 20)
-            self.drop_sides_list[torch.int64].append(False)
-            self.pad_sides_list[torch.int64].append(False)
+            self.fused_vals[torch.float64].append(val.cuda())
+            self.fused_offsets[torch.float64].append(offsets[0].cuda())
+            self.fused_inner_offsets[torch.float64].append(offsets[1].cuda())
+            self.keep_lengths_list[torch.float64].append(i % 2 + 20)
+            self.drop_sides_list[torch.float64].append(False)
+            self.pad_sides_list[torch.float64].append(False)
 
         for i in range(10):
             val, offsets, max_lens = gen_ragged_tensor(
@@ -110,7 +109,23 @@ class TestFusedCutOffConsistency(unittest.TestCase):
 
         for i in range(10):
             val, offsets, max_lens = gen_ragged_tensor(
-                bs=2000,
+                bs=3000,
+                min_seq=5,
+                max_seq=10,
+                max_n=0,
+                min_n=0,
+                dtype=torch.float64,
+            )
+            self.fused_vals[torch.float64].append(val.cuda())
+            self.fused_offsets[torch.float64].append(offsets[0].cuda())
+            self.fused_inner_offsets[torch.float64].append(offsets[1].cuda())
+            self.keep_lengths_list[torch.float64].append(i + 3)
+            self.drop_sides_list[torch.float64].append(False)
+            self.pad_sides_list[torch.float64].append(False)
+
+        for i in range(10):
+            val, offsets, max_lens = gen_ragged_tensor(
+                bs=8192,
                 min_seq=1,
                 max_seq=10 + i,
                 max_n=1,
@@ -123,7 +138,6 @@ class TestFusedCutOffConsistency(unittest.TestCase):
             self.keep_lengths_list[torch.float32].append(i % 8 + 20)
             self.drop_sides_list[torch.float32].append(False)
             self.pad_sides_list[torch.float32].append(False)
-
         for dt in [torch.float64, torch.int64, torch.int32, torch.float32]:
             self.keep_lengths[dt] = torch.tensor(
                 self.keep_lengths_list[dt], dtype=torch.int32
@@ -135,7 +149,7 @@ class TestFusedCutOffConsistency(unittest.TestCase):
                 self.pad_sides_list[dt], dtype=torch.bool
             ).to("cuda")
 
-    # Since recis v2 removes the implementation of sparse cutoff, we compare calling fuse_cutoff_3D individually versus fusing the inputs and calling fuse_cutoff_3D once, in order to verify the correctness of the operator.
+    # Since recis removes the implementation of sparse cutoff, we compare calling fuse_cutoff_3D individually versus fusing the inputs and calling fuse_cutoff_3D once, in order to verify the correctness of the operator.
     def test_fuse_consistency(self):
         for t in range(self.num_tests):
             for dt in [torch.int64, torch.float64, torch.float32, torch.int32]:

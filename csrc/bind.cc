@@ -202,7 +202,7 @@ TORCH_LIBRARY(recis, m) {
   m.def("fused_uint64_mod", recis::functional::fused_uint64_mod);
   m.def("fused_bucketized", recis::functional::fused_bucketized);
   m.def("fused_hash", recis::functional::fused_hash);
-  m.def("fused_ragged_cutoff", recis::functional::fused_ragged_cutoff);
+  m.def("fused_ragged_cutoff_2D", recis::functional::fused_ragged_cutoff_2D);
   m.def("fused_ragged_cutoff_3D", recis::functional::fused_ragged_cutoff_3D);
   m.def("feature_cross_ragged", recis::functional::feature_cross_ragged);
   m.def("ragged_tile", recis::functional::ragged_tile);

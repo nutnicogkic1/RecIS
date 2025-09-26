@@ -1,6 +1,6 @@
 import random
 import unittest
-from typing import List
+from typing import List, Optional
 
 import torch
 
@@ -70,48 +70,67 @@ def ragged_to_dense_torch(
 
 
 def gen_2d_ragged_tensor(
-    batch_size: int, max_row_length: int, device="cpu", dtype=torch.int64, seed=None
+    batch_size: int,
+    min_seq: int,
+    max_seq: int,
+    device="cpu",
+    dtype=torch.int64,
+    seed=None,
 ):
     if seed is not None:
         random.seed(seed)
 
     offsets = [0]
-    all_values = []
+    value_len = 0
 
     max_row_len = 0
     for i in range(batch_size):
-        # row_len = random.randint(1, max_row_length)
-        row_len = random.randint(0, max_row_length)
-        max_row_len = max(row_len, max_row_len)
-        if row_len > 0:
-            vals = torch.randint(low=0, high=9999, size=(row_len,))
-            all_values.append(vals)
+        row_len = random.randint(min_seq, max_seq)
+        max_row_len = max(max_row_len, row_len)
+        value_len += row_len
         offsets.append(offsets[-1] + row_len)
 
-    assert len(all_values) > 0, "err when gen ragged!"
-
-    values = torch.cat(all_values).to(device)
+    values = torch.arange(value_len, dtype=dtype, device=device)
     offsets = torch.tensor(offsets, dtype=torch.int32, device=device)
     return values, offsets, [max_row_len]
 
 
-def gen_ragged_tensor(bs, seq, n, device="cpu", seed=None):
+def gen_ragged_tensor(
+    bs: int,
+    min_seq: int,
+    max_seq: int,
+    min_n: int,
+    max_n: int,
+    device: str = "cpu",
+    dtype: torch.dtype = torch.int64,
+    seed: Optional[int] = None,
+):
     if seed is not None:
         random.seed(seed)
+
     offsets = [[0], [0]]
     max_lengths = [0, 0]
     values_len = 0
+
+    if max_seq < min_seq:
+        raise ValueError("max_seq must be greater than or equal to min_seq.")
+    if max_n < min_n:
+        raise ValueError("max_n must be greater than or equal to min_n.")
+
     for i in range(bs):
-        seq_len = random.randint(0, seq)
-        values_len += n * seq_len
+        seq_len = random.randint(min_seq, max_seq)
         max_lengths[0] = max(max_lengths[0], seq_len)
         for j in range(seq_len):
-            offsets[-1].append(offsets[-1][-1] + n)
+            element_len = random.randint(min_n, max_n)
+            values_len += element_len
+            max_lengths[1] = max(max_lengths[1], element_len)
+            offsets[-1].append(offsets[-1][-1] + element_len)
+
         offsets[0].append(offsets[0][-1] + seq_len)
 
-    max_lengths[1] = n
     offsets = [torch.tensor(x, dtype=torch.int32, device=device) for x in offsets]
-    values = torch.arange(values_len, dtype=torch.float32, device=device)
+    values = torch.arange(values_len, dtype=dtype, device=device)
+
     return values, offsets, max_lengths
 
 
@@ -120,28 +139,60 @@ class TestRaggedToDense(unittest.TestCase):
 
     def setUp(self):
         self.bs = 3500
-        self.seq = 2000
-        self.n = 20
-        self.num_tests = 5
+        self.min_seq = 200
+        self.max_seq = 300
+        self.min_n = 20
+        self.max_n = 30
+        self.num_tests = 30
 
     def test_ragged_to_dense(self):
         for t in range(self.num_tests):
             seed = random.randrange(2**32)
-            cpu_vals, cpu_offs, max_lengths = gen_ragged_tensor(
-                self.bs, self.seq, self.n, device="cpu", seed=seed
-            )
-            # cpu_vals, cpu_offs = gen_2d_ragged_tensor(self.bs, self.seq, device="cpu")
-            # cpu_offs = [cpu_offs]
+            if t % 6 == 0:
+                cpu_vals, cpu_offs, max_lengths = gen_ragged_tensor(
+                    0,
+                    self.min_seq,
+                    self.max_seq,
+                    self.min_n,
+                    self.max_n,
+                    device="cpu",
+                    seed=seed,
+                )
+            elif t % 6 == 1:
+                cpu_vals, cpu_offs, max_lengths = gen_ragged_tensor(
+                    self.bs, self.min_seq, self.max_seq, 0, 0, device="cpu", seed=seed
+                )
+            elif t % 6 == 2:
+                cpu_vals, cpu_offs, max_lengths = gen_ragged_tensor(
+                    self.bs, 0, 0, 0, 0, device="cpu", seed=seed
+                )
+            elif t % 6 == 3:
+                cpu_vals, cpu_offs, max_lengths = gen_2d_ragged_tensor(
+                    self.bs, self.min_seq, self.max_seq, device="cpu", seed=seed
+                )
+                cpu_offs = [cpu_offs]
+            elif t % 6 == 4:
+                cpu_vals, cpu_offs, max_lengths = gen_2d_ragged_tensor(
+                    self.bs, 0, 0, device="cpu", seed=seed
+                )
+                cpu_offs = [cpu_offs]
+            else:
+                cpu_vals, cpu_offs, max_lengths = gen_ragged_tensor(
+                    self.bs,
+                    self.min_seq,
+                    self.max_seq,
+                    self.min_n,
+                    self.max_n,
+                    device="cpu",
+                    seed=seed,
+                )
             cpu_out = ragged_to_dense(cpu_vals, cpu_offs, 0)
-
             gpu_vals = cpu_vals.cuda()
             gpu_offs = [o.cuda() for o in cpu_offs]
             gpu_out = ragged_to_dense(gpu_vals, gpu_offs, 0)
 
             torch.cuda.synchronize()
-
             torch_out = ragged_to_dense_torch(gpu_vals, gpu_offs)
-
             torch.cuda.synchronize()
 
             with self.subTest(test=t, seed=seed):

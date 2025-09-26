@@ -48,7 +48,8 @@ void ragged_to_dense_cpu_kernel(const scalar_t* __restrict__ values,
 torch::Tensor ragged_to_dense(torch::Tensor values,
                               const std::vector<torch::Tensor>& offsets,
                               torch::Scalar default_value) {
-  TORCH_CHECK(values.dim() == 1, "values must dim == 1");
+  TORCH_CHECK(values.dim() == 1 || values.numel() == 0,
+              "values must be dim == 1 or empty");
   TORCH_CHECK(all_same_type(offsets, torch::kInt32) ||
                   all_same_type(offsets, torch::kInt64),
               "ragged_to_dense: each offsets should be torch::kInt32 or "
@@ -58,17 +59,26 @@ torch::Tensor ragged_to_dense(torch::Tensor values,
           (all_cuda(offsets) && all_cuda({values})),
       "ragged_to_dense: offsets and value should be all on cpu or cuda");
 
-  const int num_offsets = offsets.size();
   torch::Tensor output;
+  const int num_offsets = offsets.size();
+
   std::vector<int64_t> dense_shape;
   dense_shape.push_back(offsets[0].size(0) - 1);
   for (int dim = 0; dim < num_offsets; ++dim) {
     const auto& offset = offsets[dim];
-    auto max_width =
-        (offset.slice(0, 1) - offset.slice(0, 0, -1)).max().item<int64_t>();
+    int64_t max_width = 0;
+    if (offset.numel() > 1) {
+      max_width =
+          (offset.slice(0, 1) - offset.slice(0, 0, -1)).max().item<int64_t>();
+    }
     dense_shape.push_back(max_width);
   }
+
   const auto& options = values.options();
+  if (values.numel() == 0) {
+    torch::Tensor output = torch::empty(dense_shape, options);
+    return output;
+  }
 
   if (values.device().is_cuda()) {
     output = torch::empty(dense_shape, options);

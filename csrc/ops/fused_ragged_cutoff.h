@@ -11,9 +11,9 @@ namespace functional {
 std::tuple<std::vector<torch::Tensor>, std::vector<torch::Tensor>,
            std::vector<torch::Tensor>, std::vector<torch::Tensor>,
            torch::Tensor, torch::Tensor>
-fused_ragged_cutoff(std::vector<at::Tensor> value,
-                    std::vector<at::Tensor> offset, at::Tensor keep_length,
-                    at::Tensor drop_sides, at::Tensor pad_sides);
+fused_ragged_cutoff_2D(std::vector<at::Tensor> value,
+                       std::vector<at::Tensor> offset, at::Tensor keep_length,
+                       at::Tensor drop_sides, at::Tensor pad_sides);
 
 void fused_ragged_cutoff_2D_cuda_op(
     std::vector<at::Tensor> values, std::vector<at::Tensor> offsets,

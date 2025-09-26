@@ -203,7 +203,7 @@ __global__ void feature_cross_ragged_kernel(
   int tid = threadIdx.x;
 
   extern __shared__ unsigned char shm[];
-  if (use_shared_mem) {
+  if constexpr (use_shared_mem) {
     thrust::pair<int64_t*, int64_t*>* sm_val_segs =
         reinterpret_cast<thrust::pair<int64_t*, int64_t*>*>(shm);
     thrust::pair<scalar_t*, scalar_t*>* sm_wt_segs =
@@ -372,23 +372,16 @@ feature_cross_ragged_cuda(torch::Tensor x_value, torch::Tensor x_offsets,
         x_offsets.scalar_type(), "feature_cross_ragged_cuda_op_0", [&] {
           AT_DISPATCH_ALL_TYPES(
               x_weight.scalar_type(), "feature_cross_ragged_cuda_op_1", [&] {
-                size_t shared_mem_per_block =
-                    at::cuda::getCurrentDeviceProperties()->sharedMemPerBlock;
-                index_t sm_size = sizeof(index_t) * (num_seg + 1) +
-                                  sizeof(std::pair<void*, void*>) * num_seg * 4;
-
+                index_t shared_mem_size =
+                    sizeof(index_t) * (num_seg + 1) +
+                    sizeof(std::pair<void*, void*>) * num_seg * 4;
                 const auto blocks =
                     dim3((val_shape + MAX_THREADS_PER_BLOCK - 1) /
                          MAX_THREADS_PER_BLOCK);
 
-                auto func =
-                    &feature_cross_ragged_kernel<scalar_t, index_t, true>;
-                if (sm_size > shared_mem_per_block) {
-                  func = &feature_cross_ragged_kernel<scalar_t, index_t, false>;
-                  sm_size = 0;
-                }
-
-                func<<<blocks, threads, sm_size, stream>>>(
+                LAUNCH_KERNEL_SHMEM_DISPATCH(
+                    feature_cross_ragged_kernel, (scalar_t, index_t), blocks,
+                    threads, shared_mem_size, stream,
                     x_val_work.data_ptr<int64_t>(),
                     x_offsets.data_ptr<index_t>(),
                     x_wt_work.data_ptr<scalar_t>(),
@@ -407,7 +400,6 @@ feature_cross_ragged_cuda(torch::Tensor x_value, torch::Tensor x_offsets,
                     reinterpret_cast<const thrust::pair<scalar_t*, scalar_t*>*>(
                         thrust::raw_pointer_cast(y_wt_segs.data())),
                     num_seg);
-                C10_CUDA_KERNEL_LAUNCH_CHECK();
               });
         });
 
