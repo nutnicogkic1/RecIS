@@ -1,3 +1,4 @@
+<p align="center"><img width="30%" src="docs/_static/logo.png" alt="LOGO"></p>
 <h1 align="center">  RecIS (Recommendation Intelligence System) </h1>
 
 RecIS：一个专为超大规模稀疏+稠密计算设计的统一架构深度学习框架。基于 PyTorch 开源生态构建，为推荐模型训练，或推荐结合多模态/大模型训练提供了完整的解决方案。由阿里控股集团爱橙科技智能引擎事业部和淘天广告技术、淘天算法技术团队联合推出。目前已在阿里巴巴广告、推荐、搜索等场景广泛应用。
