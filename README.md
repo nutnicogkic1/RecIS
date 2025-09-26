@@ -6,12 +6,14 @@ RecIS：一个专为超大规模稀疏+稠密计算设计的统一架构深度�
     <img alt="Static Badge" src="https://img.shields.io/badge/made_by-XDL_Team-blue">
     <img alt="Static Badge" src="https://img.shields.io/badge/version-v1.0.0-green">
     <img alt="Static Badge" src="https://img.shields.io/badge/license-Apache--2.0-blue">
+    <a href="https://arxiv.org/abs/2509.20883">
+        <img src="https://img.shields.io/static/v1?label=arXiv&message=Paper&color=FF4500">
+    </a>
     <img src="https://img.shields.io/github/stars/alibaba/Recis?style=social" alt="stars">
     <img src="https://img.shields.io/github/issues/alibaba/Recis" alt="GitHub issues">
     <a href="./docs/_static/recis_wechat.png" target="_blank">
       <img src="https://img.shields.io/badge/WeChat-green?logo=wechat" alt="WeChat QR">
     </a>
-
 </p>
 
 ## 🎯 设计目标
